@@ -11,16 +11,19 @@ import {
  */
 export type DomainCategory = string;
 
+export type TreeItemType = 'domain' | 'folder' | 'file';
+
 /**
- * Tree item representation for either a Domain group or an individual File.
+ * Tree item representation for a Domain group, a nested Folder, or an individual File.
  */
 export class DomainTreeItem extends vscode.TreeItem {
   constructor(
     public readonly label: string,
     public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-    public readonly itemType: 'domain' | 'file',
+    public readonly itemType: TreeItemType,
     public readonly domain?: DomainCategory,
-    public readonly fileUri?: vscode.Uri
+    public readonly fileUri?: vscode.Uri,
+    public readonly relativeFolderPath?: string
   ) {
     super(label, collapsibleState);
 
@@ -28,6 +31,10 @@ export class DomainTreeItem extends vscode.TreeItem {
       this.contextValue = 'domainCategory';
       this.tooltip = `${label} Domain`;
       this.iconPath = this.getDomainIcon(domain);
+    } else if (itemType === 'folder') {
+      this.contextValue = 'domainFolder';
+      this.tooltip = relativeFolderPath || label;
+      this.iconPath = new vscode.ThemeIcon('folder');
     } else if (fileUri) {
       this.resourceUri = fileUri;
       this.contextValue = 'domainFile';
@@ -51,6 +58,8 @@ export class DomainTreeItem extends vscode.TreeItem {
         return new vscode.ThemeIcon('layout', new vscode.ThemeColor('charts.blue'));
       case 'Backend':
         return new vscode.ThemeIcon('server', new vscode.ThemeColor('charts.green'));
+      case 'Other':
+        return new vscode.ThemeIcon('files', new vscode.ThemeColor('charts.purple'));
       default:
         return new vscode.ThemeIcon('folder-library', new vscode.ThemeColor('charts.yellow'));
     }
@@ -68,7 +77,7 @@ export class DomainTreeItem extends vscode.TreeItem {
 
 /**
  * Custom TreeDataProvider that categorizes workspace files into functional domains.
- * Reads custom rules from .domains.json if present, falling back to default heuristics.
+ * Organizes files into collapsible folders and subfolders within each domain.
  */
 export class DomainTreeDataProvider
   implements vscode.TreeDataProvider<DomainTreeItem>, vscode.Disposable {
@@ -137,14 +146,15 @@ export class DomainTreeDataProvider
   }
 
   public async getChildren(element?: DomainTreeItem): Promise<DomainTreeItem[]> {
-    // Top-level: Return Domain Category folders
+    // 1. Top-level: Return Domain Category roots (Frontend, Backend, Auth, Extra Files / Other)
     if (!element) {
       const activeDomains = Array.from(this.domainFileMap.keys());
 
       return activeDomains.map((domain) => {
         const fileCount = this.domainFileMap.get(domain)?.length ?? 0;
+        const displayLabel = domain === 'Other' ? `Extra Files (${fileCount})` : `${domain} (${fileCount})`;
         return new DomainTreeItem(
-          `${domain} (${fileCount})`,
+          displayLabel,
           fileCount > 0
             ? vscode.TreeItemCollapsibleState.Expanded
             : vscode.TreeItemCollapsibleState.Collapsed,
@@ -154,23 +164,105 @@ export class DomainTreeDataProvider
       });
     }
 
-    // Second level: Return sorted files grouped under the selected domain
+    // 2. Direct children under a Domain: Root folders and files in this domain
     if (element.itemType === 'domain' && element.domain) {
-      const files = this.domainFileMap.get(element.domain) || [];
-      return files
-        .sort((a, b) => path.basename(a.fsPath).localeCompare(path.basename(b.fsPath)))
-        .map((fileUri) => {
-          return new DomainTreeItem(
-            path.basename(fileUri.fsPath),
-            vscode.TreeItemCollapsibleState.None,
-            'file',
-            element.domain,
-            fileUri
-          );
-        });
+      return this.getDirectoryChildren(element.domain, '');
+    }
+
+    // 3. Children inside a nested folder: Subfolders and files in this folder path
+    if (element.itemType === 'folder' && element.domain && element.relativeFolderPath !== undefined) {
+      return this.getDirectoryChildren(element.domain, element.relativeFolderPath);
     }
 
     return [];
+  }
+
+  /**
+   * Hierarchically resolves immediate subfolders and direct files inside a parent relative path.
+   */
+  private getDirectoryChildren(
+    domain: DomainCategory,
+    parentDir: string
+  ): DomainTreeItem[] {
+    const uris = this.domainFileMap.get(domain) || [];
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      return [];
+    }
+
+    const subfolderCountMap = new Map<string, number>();
+    const directFiles: vscode.Uri[] = [];
+
+    for (const uri of uris) {
+      const wsFolder = vscode.workspace.getWorkspaceFolder(uri);
+      const rootPath = wsFolder ? wsFolder.uri.fsPath : workspaceFolders[0].uri.fsPath;
+      const relPath = path.relative(rootPath, uri.fsPath).replace(/\\/g, '/');
+
+      if (parentDir === '') {
+        const slashIndex = relPath.indexOf('/');
+        if (slashIndex === -1) {
+          // File directly in workspace root
+          directFiles.push(uri);
+        } else {
+          // File belongs to a root-level subfolder
+          const topFolder = relPath.substring(0, slashIndex);
+          subfolderCountMap.set(topFolder, (subfolderCountMap.get(topFolder) || 0) + 1);
+        }
+      } else {
+        const prefix = `${parentDir}/`;
+        if (relPath.startsWith(prefix)) {
+          const remaining = relPath.substring(prefix.length);
+          const slashIndex = remaining.indexOf('/');
+          if (slashIndex === -1) {
+            // File directly inside this parent folder
+            directFiles.push(uri);
+          } else {
+            // File belongs to a subfolder inside this parent folder
+            const subFolder = remaining.substring(0, slashIndex);
+            subfolderCountMap.set(subFolder, (subfolderCountMap.get(subFolder) || 0) + 1);
+          }
+        }
+      }
+    }
+
+    const items: DomainTreeItem[] = [];
+
+    // Add immediate subfolders (sorted alphabetically)
+    const sortedFolders = Array.from(subfolderCountMap.keys()).sort((a, b) =>
+      a.localeCompare(b)
+    );
+    for (const folderName of sortedFolders) {
+      const folderPath = parentDir ? `${parentDir}/${folderName}` : folderName;
+      const count = subfolderCountMap.get(folderName) || 0;
+      items.push(
+        new DomainTreeItem(
+          `${folderName} (${count})`,
+          vscode.TreeItemCollapsibleState.Collapsed,
+          'folder',
+          domain,
+          undefined,
+          folderPath
+        )
+      );
+    }
+
+    // Add direct files (sorted alphabetically)
+    directFiles.sort((a, b) =>
+      path.basename(a.fsPath).localeCompare(path.basename(b.fsPath))
+    );
+    for (const fileUri of directFiles) {
+      items.push(
+        new DomainTreeItem(
+          path.basename(fileUri.fsPath),
+          vscode.TreeItemCollapsibleState.None,
+          'file',
+          domain,
+          fileUri
+        )
+      );
+    }
+
+    return items;
   }
 
   /**
@@ -246,7 +338,6 @@ export class DomainTreeDataProvider
   public classifyFile(uri: vscode.Uri): DomainCategory {
     // 1. Evaluate custom config rules first if available
     if (this.customConfig && this.customConfig.size > 0) {
-      // Prioritize Auth if configured, then Frontend, then Backend, then any other
       const domainPriority = ['Auth', 'Frontend', 'Backend', ...this.customConfig.keys()];
       const checked = new Set<string>();
 

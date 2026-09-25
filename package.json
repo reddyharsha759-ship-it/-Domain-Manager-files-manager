@@ -1,15 +1,15 @@
 {
   "name": "domain-file-manager",
   "displayName": "Domain File Manager",
-  "description": "Groups workspace files into functional domains (Frontend, Backend, Auth) rather than raw folder trees.",
-  "version": "0.1.0",
+  "description": "Groups workspace files into functional domains (Frontend, Backend, Auth, Extra Files) with nested folder organization rather than raw folder trees.",
+  "version": "0.1.1",
   "publisher": "local-developer",
   "engines": {
     "vscode": "^1.80.0"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/local-developer/domain-file-manager"
+    "url": "https://github.com/reddyharsha759-ship-it/-Domain-Manager-files-manager"
   },
   "categories": [
     "Other"
@@ -74,7 +74,7 @@
       "view/item/context": [
         {
           "command": "domainFileManager.revealInExplorer",
-          "when": "view == domainFileManagerView && viewItem == domainFile",
+          "when": "view == domainFileManagerView && (viewItem == domainFile || viewItem == domainFolder)",
           "group": "navigation"
         }
       ]
@@ -84,7 +84,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package --no-dependencies"
+    "package": "npx @vscode/vsce package --no-dependencies"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

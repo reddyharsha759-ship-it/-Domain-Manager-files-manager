@@ -26,7 +26,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // Right-click context menu command: Reveal in Explorer
+  // Right-click context menu command: Reveal in Explorer (for both files and folders)
   const revealInExplorerCommand = vscode.commands.registerCommand(
     'domainFileManager.revealInExplorer',
     async (item?: DomainTreeItem | vscode.Uri) => {
@@ -36,6 +36,11 @@ export function activate(context: vscode.ExtensionContext) {
         targetUri = item;
       } else if (item && item.fileUri) {
         targetUri = item.fileUri;
+      } else if (item && item.relativeFolderPath) {
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        if (wsFolder) {
+          targetUri = vscode.Uri.joinPath(wsFolder.uri, item.relativeFolderPath);
+        }
       } else if (vscode.window.activeTextEditor) {
         targetUri = vscode.window.activeTextEditor.document.uri;
       }
@@ -43,7 +48,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (targetUri) {
         await vscode.commands.executeCommand('revealInExplorer', targetUri);
       } else {
-        vscode.window.showWarningMessage('No file selected to reveal in explorer.');
+        vscode.window.showWarningMessage('No file or folder selected to reveal in explorer.');
       }
     }
   );
@@ -67,6 +72,8 @@ export function activate(context: vscode.ExtensionContext) {
             return '$(layout)';
           case 'Backend':
             return '$(server)';
+          case 'Other':
+            return '$(files)';
           default:
             return '$(file)';
         }
@@ -78,9 +85,11 @@ export function activate(context: vscode.ExtensionContext) {
           ? path.relative(workspaceFolder.uri.fsPath, uri.fsPath).replace(/\\/g, '/')
           : uri.fsPath.replace(/\\/g, '/');
 
+        const domainTag = domain === 'Other' ? 'Extra Files' : domain;
+
         return {
           label: `${getDomainIcon(domain)} ${path.basename(uri.fsPath)}`,
-          description: `[${domain}]`,
+          description: `[${domainTag}]`,
           detail: relativePath,
           uri,
           domain,
@@ -88,7 +97,7 @@ export function activate(context: vscode.ExtensionContext) {
       });
 
       const selected = await vscode.window.showQuickPick(items, {
-        placeHolder: 'Search domain files by name, path, or tag ([Frontend], [Backend], [Auth])...',
+        placeHolder: 'Search domain files by name, path, or tag ([Frontend], [Backend], [Auth], [Extra Files])...',
         matchOnDescription: true,
         matchOnDetail: true,
       });
