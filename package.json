@@ -1,0 +1,95 @@
+{
+  "name": "domain-file-manager",
+  "displayName": "Domain File Manager",
+  "description": "Groups workspace files into functional domains (Frontend, Backend, Auth) rather than raw folder trees.",
+  "version": "0.1.0",
+  "publisher": "local-developer",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/local-developer/domain-file-manager"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onView:domainFileManagerView"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "domain-manager",
+          "title": "Domain Manager",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "domain-manager": [
+        {
+          "id": "domainFileManagerView",
+          "name": "Functional Domains",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "domainFileManager.refresh",
+        "title": "Refresh Domains",
+        "category": "Domain File Manager",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "domainFileManager.revealInExplorer",
+        "title": "Reveal in Explorer",
+        "category": "Domain File Manager",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "domainFileManager.jumpToDomainFile",
+        "title": "Jump to Domain File",
+        "category": "Domain Manager"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "domainFileManager.jumpToDomainFile",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "domainFileManager.refresh",
+          "when": "view == domainFileManagerView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "domainFileManager.revealInExplorer",
+          "when": "view == domainFileManagerView && viewItem == domainFile",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^2.24.0",
+    "typescript": "^5.3.0"
+  }
+}

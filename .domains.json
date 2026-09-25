@@ -1,0 +1,19 @@
+{
+  "domains": {
+    "Auth": {
+      "patterns": ["auth", "login", "signup", "session", "jwt", "oauth", "token", "permission"],
+      "folders": ["src/auth", "lib/auth", "src/presentation/providers/auth"],
+      "extensions": []
+    },
+    "Frontend": {
+      "patterns": ["components?", "pages?", "screens?", "widgets?", "ui", "presentation"],
+      "folders": ["src/components", "src/views", "lib/presentation/screens", "lib/presentation/shell"],
+      "extensions": [".jsx", ".tsx", ".vue", ".svelte", ".html", ".css", ".scss"]
+    },
+    "Backend": {
+      "patterns": ["api", "controllers?", "services?", "models?", "routes?", "database", "supabase"],
+      "folders": ["src/api", "src/server", "lib/core/network"],
+      "extensions": []
+    }
+  }
+}
